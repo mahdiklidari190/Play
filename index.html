@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تتریس رنگی</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            border: 2px solid #000;
+            background-color: #fff;
+            width: 90vw;
+            max-width: 300px;
+            height: 60vh;
+            max-height: 600px;
+        }
+
+        .info {
+            margin-top: 10px;
+            font-size: 1.2em;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .controls button {
+            padding: 10px;
+            font-size: 1em;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .controls button:active {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>تتریس رنگی</h1>
+        <canvas id="tetris"></canvas>
+        <div class="info">
+            <p>امتیاز: <span id="score">0</span></p>
+        </div>
+        <div class="controls">
+            <button id="left">چپ</button>
+            <button id="right">راست</button>
+            <button id="rotate">چرخش</button>
+            <button id="down">پایین</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        const scale = 30;
+        const rows = canvas.height / scale;
+        const columns = canvas.width / scale;
+
+        let score = 0;
+        let grid = createGrid();
+        let piece = createPiece();
+
+        const colors = [
+            null, // 0 = بدون رنگ
+            '#FF0D72', // 1 = صورتی
+            '#0DC2FF', // 2 = آبی
+            '#0DFF72', // 3 = سبز
+            '#F538FF', // 4 = بنفش
+            '#FF8E0D', // 5 = نارنجی
+            '#FFE138', // 6 = زرد
+            '#3877FF'  // 7 = آبی تیره
+        ];
+
+        function createGrid() {
+            return Array.from({ length: rows }, () => Array(columns).fill(0));
+        }
+
+        function createPiece() {
+            const shapes = [
+                [[1, 1, 1, 1]], // I
+                [[2, 2], [2, 2]], // O
+                [[0, 3, 0], [3, 3, 3]], // T
+                [[4, 0, 0], [4, 4, 4]], // L
+                [[0, 0, 5], [5, 5, 5]], // J
+                [[0, 6, 6], [6, 6, 0]], // S
+                [[7, 7, 0], [0, 7, 7]]  // Z
+            ];
+            const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+            return {
+                shape: randomShape,
+                x: Math.floor(columns / 2) - Math.floor(randomShape[0].length / 2),
+                y: 0,
+                color: colors[randomShape[0][0]] // رنگ اولین بلوک شکل
+            };
+        }
+
+        function drawBlock(x, y, color) {
+            context.fillStyle = color;
+            context.fillRect(x * scale, y * scale, scale, scale);
+            context.strokeStyle = 'black';
+            context.strokeRect(x * scale, y * scale, scale, scale);
+        }
+
+        function drawGrid() {
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < columns; col++) {
+                    if (grid[row][col]) {
+                        drawBlock(col, row, colors[grid[row][col]]);
+                    }
+                }
+            }
+        }
+
+        function drawPiece() {
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        drawBlock(piece.x + x, piece.y + y, piece.color);
+                    }
+                });
+            });
+        }
+
+        function updateScore() {
+            document.getElementById('score').innerText = score;
+        }
+
+        function clearLines() {
+            for (let row = rows - 1; row >= 0; row--) {
+                if (grid[row].every(cell => cell !== 0)) {
+                    grid.splice(row, 1);
+                    grid.unshift(Array(columns).fill(0));
+                    score += 10;
+                }
+            }
+        }
+
+        function mergePiece() {
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        grid[piece.y + y][piece.x + x] = value;
+                    }
+                });
+            });
+        }
+
+        function movePiece(dx, dy) {
+            piece.x += dx;
+            piece.y += dy;
+            if (collision()) {
+                piece.x -= dx;
+                piece.y -= dy;
+                if (dy === 1) {
+                    mergePiece();
+                    piece = createPiece();
+                    if (collision()) {
+                        alert('بازی تمام شد! امتیاز شما: ' + score);
+                        grid = createGrid();
+                        score = 0;
+                    }
+                }
+            }
+        }
+
+        function rotatePiece() {
+            const originalShape = piece.shape;
+            piece.shape = piece.shape[0].map((_, i) => 
+                piece.shape.map(row => row[i]).reverse()
+            );
+            if (collision()) {
+                piece.shape = originalShape;
+            }
+        }
+
+        function collision() {
+            return piece.shape.some((row, y) => 
+                row.some((value, x) => 
+                    value && (grid[piece.y + y] && grid[piece.y + y][piece.x + x]) !== 0
+                )
+            );
+        }
+
+        function update() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawPiece();
+            clearLines();
+            updateScore();
+            requestAnimationFrame(update);
+        }
+
+        document.getElementById('left').addEventListener('click', () => movePiece(-1, 0));
+        document.getElementById('right').addEventListener('click', () => movePiece(1, 0));
+        document.getElementById('rotate').addEventListener('click', rotatePiece);
+        document.getElementById('down').addEventListener('click', () => movePiece(0, 1));
+
+        setInterval(() => movePiece(0, 1), 1000); // حرکت خودکار قطعه به پایین
+        update();
+    </script>
+</body>
+</html>
